@@ -8,12 +8,10 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1
-  ECR_REPOSITORY: devops-python-api
-  ECS_SERVICE: devops-python-api-service
-  ECS_CLUSTER: devops-python-api-cluster
-  ECS_TASK_DEFINITION: .aws/task-definition.json
+  AWS_REGION: us-east-1       # região (sem a letra da zona), ex.: us-east-1
   CONTAINER_NAME: devops-python-api
+  APP_PORT: "8000"
+
 permissions:
   contents: read
 
@@ -108,12 +106,18 @@ jobs:
         run: docker rm --force devops-python-api
 
   deploy:
-    name: Deploy na AWS (ECS)
+    name: Deploy na AWS (EC2)
     needs: container-smoke-test
     # Só faz deploy em push na main, nunca em pull request.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: production
+    # Nome exato do environment que guarda os secrets e variáveis (Settings > Environments)
+    environment: DES
+
+    env:
+      EC2_HOST: ${{ vars.EC2_HOST }}
+      EC2_USER: ${{ vars.EC2_USER }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
 
     steps:
       - name: Obter o código
@@ -136,22 +140,47 @@ jobs:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG: ${{ github.sha }}
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          echo "image=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG" >> $GITHUB_OUTPUT
+          REPO="${ECR_REPOSITORY%/}"
+          IMAGE="$ECR_REGISTRY/$REPO:$IMAGE_TAG"
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
+          echo "registry=$ECR_REGISTRY" >> "$GITHUB_OUTPUT"
 
-      - name: Atualizar a imagem na task definition
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: ${{ env.ECS_TASK_DEFINITION }}
-          container-name: ${{ env.CONTAINER_NAME }}
-          image: ${{ steps.build-image.outputs.image }}
+      - name: Preparar acesso SSH
+        env:
+          EC2_SSH_PRIVATE_KEY: ${{ secrets.EC2_SSH_PRIVATE_KEY }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > ~/.ssh/ec2_key
+          chmod 600 ~/.ssh/ec2_key
+          ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
-      - name: Publicar a task definition no ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ env.ECS_SERVICE }}
-          cluster: ${{ env.ECS_CLUSTER }}
-          wait-for-service-stability: true
+      - name: Atualizar o container na EC2
+        env:
+          IMAGE: ${{ steps.build-image.outputs.image }}
+          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+        run: |
+          SSH="ssh -i $HOME/.ssh/ec2_key $EC2_USER@$EC2_HOST"
+
+          # Login no ECR dentro da EC2, usando a senha gerada aqui no runner
+          aws ecr get-login-password --region "$AWS_REGION" \
+            | $SSH "docker login --username AWS --password-stdin $REGISTRY"
+
+          $SSH "docker pull $IMAGE \
+            && (docker rm --force $CONTAINER_NAME || true) \
+            && docker run --detach --name $CONTAINER_NAME --restart unless-stopped \
+                 --publish $APP_PORT:8000 $IMAGE"
+
+      - name: Verificar o endpoint de saúde na EC2
+        run: |
+          SSH="ssh -i $HOME/.ssh/ec2_key $EC2_USER@$EC2_HOST"
+          for attempt in {1..20}; do
+            if $SSH "curl --fail --silent http://127.0.0.1:$APP_PORT/health"; then
+              exit 0
+            fi
+            echo "Tentativa ${attempt}: API ainda não está pronta"
+            sleep 2
+          done
+          $SSH "docker logs $CONTAINER_NAME" || true
+          exit 1
