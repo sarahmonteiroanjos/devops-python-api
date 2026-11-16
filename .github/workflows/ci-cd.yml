@@ -8,13 +8,12 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: MY_AWS_REGION                   # região da AWS, ex.: us-east-1
-  ECR_REPOSITORY: MY_ECR_REPOSITORY           # nome do repositório no ECR
-  ECS_SERVICE: MY_ECS_SERVICE                 # nome do serviço no ECS
-  ECS_CLUSTER: MY_ECS_CLUSTER                 # nome do cluster no ECS
-  ECS_TASK_DEFINITION: MY_ECS_TASK_DEFINITION # caminho do JSON, ex.: .aws/task-definition.json
-  CONTAINER_NAME: MY_CONTAINER_NAME           # nome do container dentro da task definition
-
+  AWS_REGION: us-east-1
+  ECR_REPOSITORY: devops-python-api
+  ECS_SERVICE: devops-python-api-service
+  ECS_CLUSTER: devops-python-api-cluster
+  ECS_TASK_DEFINITION: .aws/task-definition.json
+  CONTAINER_NAME: devops-python-api
 permissions:
   contents: read
 
