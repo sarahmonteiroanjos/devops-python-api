@@ -105,13 +105,11 @@ jobs:
         if: always()
         run: docker rm --force devops-python-api
 
-  deploy:
+      
+ deploy:
     name: Deploy na AWS (EC2)
     needs: container-smoke-test
-    # Só faz deploy em push na main, nunca em pull request.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    # Nome exato do environment que guarda os secrets e variáveis (Settings > Environments)
     environment: DES
 
     env:
