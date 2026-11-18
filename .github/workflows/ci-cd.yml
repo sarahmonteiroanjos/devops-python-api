@@ -104,18 +104,18 @@ jobs:
       - name: Remover o container
         if: always()
         run: docker rm --force devops-python-api
-        
-  deploy:
-     name: Deploy na AWS (EC2)
-     needs: container-smoke-test
-     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-     environment: DES
-    
-     env:
-       EC2_HOST: ${{ vars.EC2_HOST }}
-       EC2_USER: ${{ vars.EC2_USER }}
-       ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
 
+  deploy:
+    name: Deploy na AWS (EC2)
+    needs: container-smoke-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment: DES
+    runs-on: ubuntu-latest
+
+    env:
+      EC2_HOST: ${{ vars.EC2_HOST }}
+      EC2_USER: ${{ vars.EC2_USER }}
+      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
 
     steps:
       - name: Obter o código
@@ -154,6 +154,7 @@ jobs:
           printf '%s\n' "$EC2_SSH_PRIVATE_KEY" > ~/.ssh/ec2_key
           chmod 600 ~/.ssh/ec2_key
           ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
+
       - name: Atualizar o container na EC2
         env:
           IMAGE: ${{ steps.build-image.outputs.image }}
@@ -168,11 +169,12 @@ jobs:
           $SSH "docker pull $IMAGE \
             && (docker rm --force $CONTAINER_NAME || true) \
             && docker run --detach --name $CONTAINER_NAME --restart unless-stopped \
-                 --publish $APP_PORT:8000 $IMAGE"
+              --publish $APP_PORT:8000 $IMAGE"
 
       - name: Verificar o endpoint de saúde na EC2
         run: |
           SSH="ssh -i $HOME/.ssh/ec2_key $EC2_USER@$EC2_HOST"
+
           for attempt in {1..20}; do
             if $SSH "curl --fail --silent http://127.0.0.1:$APP_PORT/health"; then
               exit 0
@@ -180,5 +182,6 @@ jobs:
             echo "Tentativa ${attempt}: API ainda não está pronta"
             sleep 2
           done
+
           $SSH "docker logs $CONTAINER_NAME" || true
           exit 1
