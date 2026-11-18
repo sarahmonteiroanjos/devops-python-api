@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
 
 env:
-  AWS_REGION: us-east-1       # região (sem a letra da zona), ex.: us-east-1
-  CONTAINER_NAME: devops-python-api
- APP_PORT: 8080
+  PYTHON_VERSION: "3.12"
+  ECR_REPOSITORY: devops-python-api
+  APP_PORT: 8080
 
 permissions:
   contents: read
