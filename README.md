@@ -1,194 +1,117 @@
-# API Python para demonstrar DevOps
+# API DevOps de Tarefas (`devops-python-api`)
 
-Repositório didático para apresentar, em uma única aplicação, três ideias que se conectam:
+API REST desenvolvida em Python com FastAPI para gerenciamento didático de tarefas, estruturada com esteira completa de Integração Contínua (CI) e Entrega Contínua (CD) utilizando GitHub Actions, Docker, Amazon ECR e Amazon EC2.
 
-1. uma API HTTP escrita em Python;
-2. integração contínua com GitHub Actions;
-3. execução reproduzível com Docker.
+---
 
-O projeto utiliza FastAPI, pytest, Ruff, GitHub Actions e Docker. Os dados ficam em memória para manter a atenção da aula no fluxo DevOps, sem introduzir banco de dados.
+## 1. Descrição e Objetivo
+O projeto tem como objetivo automatizar o ciclo de vida de entrega de uma API Python em nuvem. Toda alteração submetida via Pull Request passa por validação de qualidade de código, testes automatizados e teste de contêiner antes de ser integrada à branch `main`. Após o merge na `main`, a pipeline realiza automaticamente o build da imagem Docker, publica no Amazon ECR com a tag do commit e atualiza o contêiner em produção na instância Amazon EC2 sem intervenção manual.
 
-## O que os estudantes devem observar
+---
 
-- O código funciona localmente e no runner do GitHub.
-- A mesma suíte de testes é executada pelo desenvolvedor e pelo pipeline.
-- O Dockerfile descreve o ambiente necessário para executar a API.
-- O pipeline só testa o container depois que qualidade e testes foram aprovados.
-- Logs, cobertura e relatórios funcionam como evidências, não apenas como mensagens coloridas.
+## 2. Tecnologias Utilizadas
+- **Linguagem e Framework:** Python 3.11, FastAPI, Uvicorn
+- **Qualidade e Testes:** Pytest, Ruff (linter), Coverage
+- **Containerização:** Docker
+- **CI/CD:** GitHub Actions
+- **Infraestrutura Cloud (AWS):** Amazon Elastic Container Registry (ECR), Amazon Elastic Compute Cloud (EC2) e IAM Roles
 
-## Estrutura do repositório
+---
 
-```text
-.
-├── .github/workflows/ci.yml   # pipeline de integração contínua
-├── app/
-│   ├── __init__.py
-│   └── main.py                # API FastAPI
-├── docs/
-│   ├── API.md
-│   ├── DOCKER.md
-│   ├── GITHUB-ACTIONS.md
-│   └── ROTEIRO-AULA.md
-├── tests/test_api.py          # testes automatizados
-├── .dockerignore
-├── .python-version
-├── compose.yaml
-├── Dockerfile
-├── pyproject.toml             # configuração de pytest, cobertura e Ruff
-├── requirements.txt           # dependências de execução
-└── requirements-dev.txt       # dependências de desenvolvimento e CI
-```
+## 3. Execução Local
 
-## 1. Executar localmente
+1. Clone o repositório e acesse a pasta do projeto:
+   ```bash
+   git clone [https://github.com/sarahmonteiroanjos/devops-python-api.git](https://github.com/sarahmonteiroanjos/devops-python-api.git)
+   cd devops-python-api
+Crie e ative um ambiente virtual Python:
 
-Pré-requisitos: Git e Python 3.13.
-
-### Linux e macOS
-
-```bash
-python3 -m venv .venv
+Bash
+python -m venv .venv
+# Linux/macOS:
 source .venv/bin/activate
-python -m pip install --requirement requirements-dev.txt
-uvicorn app.main:app --reload
-```
-
-### Windows PowerShell
-
-```powershell
-py -3.13 -m venv .venv
+# Windows (PowerShell):
 .venv\Scripts\Activate.ps1
-python -m pip install --requirement requirements-dev.txt
-uvicorn app.main:app --reload
-```
+Instale as dependências:
 
-Acesse:
+Bash
+pip install -r requirements.txt
+Execute os testes automatizados:
 
-- API: <http://localhost:8000>
-- documentação Swagger: <http://localhost:8000/docs>
-- verificação de saúde: <http://localhost:8000/health>
+Bash
+pytest -v
+Inicie a aplicação localmente:
 
-## 2. Experimentar a API
+Bash
+uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+A API estará disponível em http://localhost:8080/health (e a documentação interativa em http://localhost:8080/docs).
 
-```bash
-curl http://localhost:8000/health
+4. Construção e Execução com Docker
+Construa a imagem Docker localmente:
 
-curl -X POST http://localhost:8000/tasks \
-  -H "Content-Type: application/json" \
-  -d '{"title":"Estudar integração contínua"}'
+Bash
+docker build -t devops-python-api:local .
+Execute o contêiner mapeando a porta 8080:
 
-curl http://localhost:8000/tasks
+Bash
+docker run -d --name devops-api -p 8080:8080 devops-python-api:local
+Verifique se o contêiner está ativo e responda ao endpoint de saúde:
 
-curl -X PATCH http://localhost:8000/tasks/1/done
-```
-
-Endpoints:
-
-| Método | Caminho | Objetivo | Resposta esperada |
-|---|---|---|---|
-| GET | `/` | Apresentar a API | `200` |
-| GET | `/health` | Informar saúde e versão | `200` |
-| GET | `/tasks` | Listar tarefas | `200` |
-| POST | `/tasks` | Criar uma tarefa | `201` |
-| PATCH | `/tasks/{id}/done` | Concluir uma tarefa | `200` ou `404` |
-
-Veja a explicação do código em [docs/API.md](docs/API.md).
-
-## 3. Executar as verificações locais
-
-```bash
-ruff check .
-ruff format --check .
-pytest --cov=app --cov-report=term-missing
-```
-
-Esses comandos são deliberadamente iguais aos usados no GitHub Actions. Se uma verificação falhar localmente, ela também deverá falhar no pipeline.
-
-Para aplicar a formatação automaticamente:
-
-```bash
-ruff format .
-```
-
-## 4. Publicar no GitHub e acionar a CI
-
-O diretório já é inicializado como repositório Git local. Crie um repositório vazio no GitHub e execute:
-
-```bash
-git remote add origin https://github.com/SEU-USUARIO/devops-python-api.git
-git push -u origin main
-```
-
-O arquivo `.github/workflows/ci.yml` dispara o pipeline em três situações:
-
-- `push` na branch `main`;
-- `pull_request` destinado à `main`;
-- execução manual pela aba **Actions**.
-
-Na aba **Actions**, abra a execução e faça a leitura nesta ordem:
-
-1. workflow;
-2. job;
-3. primeiro step que falhou;
-4. comando e mensagem que explicam a falha.
-
-A explicação detalhada do YAML está em [docs/GITHUB-ACTIONS.md](docs/GITHUB-ACTIONS.md).
-
-## 5. Executar com Docker
-
-```bash
-docker build -t devops-python-api:v1 .
-docker run --rm -p 8000:8000 --name devops-python-api devops-python-api:v1
-```
-
-Em outro terminal:
-
-```bash
-curl http://localhost:8000/health
+Bash
 docker ps
-docker logs devops-python-api
-```
+curl http://localhost:8080/health
+5. Pipeline de Integração Contínua (CI)
+A etapa de CI é definida no workflow .github/workflows/ci-cd.yml e é acionada automaticamente na abertura ou atualização de Pull Requests para a branch main:
 
-Com Docker Compose:
+Qualidade e Testes: Configura o ambiente Python, instala as dependências, executa a análise estática com ruff check . e roda a suíte de testes automatizados com pytest.
 
-```bash
-docker compose up --build
-docker compose down
-```
+Validação de Contêiner: Constrói a imagem Docker, sobe um contêiner temporário no runner do GitHub Actions e valida a resposta HTTP do endpoint /health.
 
-Veja a leitura detalhada do Dockerfile em [docs/DOCKER.md](docs/DOCKER.md).
+Caso qualquer etapa falhe, o merge e a etapa de entrega contínua são bloqueados.
 
-## Falhas intencionais para demonstrar
+6. Pipeline de Entrega Contínua (CD)
+Após um merge aprovado na branch main, o workflow executa automaticamente os jobs de entrega contínua:
 
-### Falha de teste
+Revalida os testes automatizados e o build do contêiner.
 
-Em `app/main.py`, altere temporariamente a versão do health check para `2.0.0`. O teste espera `1.0.0`, então o pytest e o pipeline devem falhar.
+Autentica-se na AWS via GitHub Secrets e realiza login no Amazon ECR.
 
-### Falha de qualidade
+Constrói a imagem Docker marcando-a com o hash curto do commit ($GITHUB_SHA) e latest, enviando-a ao repositório privado no ECR.
 
-Adicione um import não utilizado no início de `app/main.py`:
+Conecta-se de forma segura via SSH à instância Amazon EC2.
 
-```python
-import os
-```
+Na EC2, autentica o Docker no ECR utilizando a IAM Role anexada à instância, baixa a nova imagem, interrompe e remove o contêiner anterior e inicia o novo contêiner na porta 8080.
 
-O step `ruff check .` localizará o problema.
+7. Arquitetura de Implantação (GitHub + ECR + EC2)
+Plaintext
+[Desenvolvedor]
+      │  (1. Branch -> Pull Request -> Merge na main)
+      ▼
+[GitHub / GitHub Actions]
+      ├──► (2. CI: Ruff + Pytest + Teste Docker)
+      ├──► (3. Build e Push da Imagem com tag do commit) ──► [Amazon ECR]
+      └──► (4. Deploy via SSH) ────────────────────────────► [Amazon EC2]
+                                                                 │ (5. IAM Role puxa imagem do ECR)
+                                                                 ▼
+                                                         [Contêiner Docker :8080]
+8. Endereço de Acesso à API Publicada
+Health Check: http://44.223.30.62:8080/health
 
-### Falha de rede no container
+Documentação Swagger UI: http://44.223.30.62:8080/docs
 
-No `Dockerfile`, troque `--host 0.0.0.0` por `--host 127.0.0.1`. O processo iniciará, mas o serviço não ficará acessível pela porta publicada no host.
+9. Evidências das Pipelines e Atualização Automática
+As execuções completas de CI, publicação no ECR e deploy automatizado na EC2 estão registradas na aba Actions do repositório:
 
-## Próximos desafios
+Pull Requests: Histórico de validação de branches e merges na aba Pull Requests (https://github.com/sarahmonteiroanjos/devops-python-api/pulls).
 
-- Adicionar um endpoint `DELETE /tasks/{id}` e seus testes.
-- Executar os testes em uma matriz com Python 3.12, 3.13 e 3.14.
-- Publicar a imagem em um registry somente após a aprovação dos testes.
-- Substituir o armazenamento em memória por um banco de dados.
+Atualização Automática (v1.0.0 → v1.1.0): Após o primeiro deploy com resposta {"status":"ok","version":"1.0.0"}, foi realizada a atualização de versão via branch/Pull Request e merge na main, disparando automaticamente a pipeline que atualizou a aplicação em produção para {"status":"ok","version":"1.1.0"}.
 
-## Referências oficiais
+10. Como Verificar a Versão Implantada
+Para confirmar a versão atualmente em execução na instância EC2, acesse pelo navegador ou execute via terminal:
 
-- [GitHub Actions: criar e testar Python](https://docs.github.com/pt/actions/tutorials/build-and-test-code/building-and-testing-python)
-- [actions/checkout](https://github.com/actions/checkout)
-- [actions/setup-python](https://github.com/actions/setup-python)
-- [actions/upload-artifact](https://github.com/actions/upload-artifact)
-- [FastAPI](https://fastapi.tiangolo.com/)
-- [Docker para Python](https://docs.docker.com/language/python/)
+Bash
+curl [http://44.223.30.62:8080/health](http://44.223.30.62:8080/health)
+Resposta esperada:
+
+JSON
+{"status":"ok","version":"1.1.0"}
