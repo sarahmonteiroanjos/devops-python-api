@@ -104,18 +104,17 @@ jobs:
       - name: Remover o container
         if: always()
         run: docker rm --force devops-python-api
-
-      
+        
  deploy:
     name: Deploy na AWS (EC2)
     needs: container-smoke-test
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     environment: DES
-
+    
     env:
-      EC2_HOST: ${{ vars.EC2_HOST }}
-      EC2_USER: ${{ vars.EC2_USER }}
-      ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
+        EC2_HOST: ${{ vars.EC2_HOST }}
+        EC2_USER: ${{ vars.EC2_USER }}
+        ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
 
     steps:
       - name: Obter o código
